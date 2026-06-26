@@ -14,6 +14,14 @@
   点击上方按钮进入 Cloudflare 部署向导；Cloudflare 会根据 wrangler 配置创建并绑定 D1/R2 资源，执行构建、D1 migration 和 Worker 部署。
 </p>
 
+## 在线演示
+
+- Demo 地址：[https://demo.edgeever.org](https://demo.edgeever.org)
+- 演示账号：`ee-demo`
+- 演示密码：`demo#dZ6Q29Zjfor%`
+
+这是公开演示环境，请不要在其中保存私密内容；演示数据可能随版本测试或维护被清理。
+
 EdgeEver 是一个完全开源、支持自部署、面向人类和 AI Agent 的现代笔记工作区。
 
 它致敬经典印象笔记的大屏三栏交互：笔记本目录、笔记列表、主编辑区。但 EdgeEver 不想复刻臃肿的旧时代套件，而是用 Cloudflare 的边缘网络、轻量前端、开放 API、MCP 和 CLI，把笔记系统重新做成一个可自托管、可编程、可被 AI 读写的个人知识库底座。
