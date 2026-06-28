@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useState,
   useCallback,
   useEffect,
@@ -20,13 +22,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { NotebookPane } from "./NotebookPane";
 import { MemoListPane } from "./MemoListPane";
-import { EditorPane } from "./EditorPane";
-import { AssetsPane } from "./AssetsPane";
-import { TagsDialog } from "./dialogs/TagsDialog";
-import { SettingsPane } from "./SettingsPane";
-import { TemplatesDialog } from "./dialogs/TemplatesDialog";
 import { AppConfirmDialog, MemoDeleteConfirmDialog, NotebookNameDialog } from "./dialogs/ConfirmDialogs";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -38,14 +34,12 @@ import type {
   NotebookNameDialogState,
   AppNoticeDialogState,
   MobileBottomNavItem,
-  SyncQueueSummary,
   NotebookNode,
   NotebookDropPosition,
   NotebookMoveOption,
   MemoTemplate,
 } from "@/lib/app-helpers";
 import {
-  emptySyncQueueSummary,
   DEFAULT_MEMO_TITLE,
   MIN_MEMO_LIST_WIDTH_PX,
   MAX_MEMO_LIST_WIDTH_PX,
@@ -64,12 +58,32 @@ import {
   getExpandableNotebookIds,
   filterNotebookTree,
   getNotebookMoveOptions,
-  syncQueuedChanges,
-  observeSyncQueue,
 } from "@/lib/app-helpers";
 import { useBrowserBackLayer } from "@/lib/app-hooks";
+import type { SyncQueueSummary } from "@/lib/sync-queue";
 
 const isDesktopViewport = () => window.matchMedia("(min-width: 1024px)").matches;
+
+const EditorPane = lazy(() => import("./EditorPane").then((module) => ({ default: module.EditorPane })));
+const AssetsPane = lazy(() => import("./AssetsPane").then((module) => ({ default: module.AssetsPane })));
+const SettingsPane = lazy(() => import("./SettingsPane").then((module) => ({ default: module.SettingsPane })));
+const NotebookPane = lazy(() => import("./NotebookPane").then((module) => ({ default: module.NotebookPane })));
+const TagsDialog = lazy(() => import("./dialogs/TagsDialog").then((module) => ({ default: module.TagsDialog })));
+const TemplatesDialog = lazy(() => import("./dialogs/TemplatesDialog").then((module) => ({ default: module.TemplatesDialog })));
+
+const emptySyncQueueSummary = (): SyncQueueSummary => ({
+  total: 0,
+  pending: 0,
+  syncing: 0,
+  conflict: 0,
+  error: 0,
+});
+
+const PaneLoadingFallback = ({ label = "正在加载" }: { label?: string }) => (
+  <div className="flex h-full min-h-0 items-center justify-center bg-white text-sm font-medium text-slate-400" role="status">
+    {label}
+  </div>
+);
 
 const MobileBottomNavButton = ({
   active = false,
@@ -437,6 +451,7 @@ export const WorkspaceApp = ({
   const [search, setSearch] = useState("");
   const [syncSummary, setSyncSummary] = useState<SyncQueueSummary>(emptySyncQueueSummary);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  const [isDesktop, setIsDesktop] = useState(isDesktopViewport);
   const [isSyncingQueuedChanges, setIsSyncingQueuedChanges] = useState(false);
 
   const [mobileListActionsOpen, setMobileListActionsOpen] = useState(false);
@@ -455,6 +470,7 @@ export const WorkspaceApp = ({
     setIsSyncingQueuedChanges(true);
 
     try {
+      const { syncQueuedChanges } = await import("@/lib/sync-queue");
       await syncQueuedChanges({
         onSynced: async (memo) => {
           queryClient.setQueryData(["memo", memo.id], { memo });
@@ -555,7 +571,32 @@ export const WorkspaceApp = ({
     writeImageCompressionPreference(imageCompressionEnabled);
   }, [imageCompressionEnabled]);
 
-  useEffect(() => observeSyncQueue(setSyncSummary), []);
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    let active = true;
+
+    void import("@/lib/sync-queue").then(({ observeSyncQueue }) => {
+      if (!active) {
+        return;
+      }
+      unsubscribe = observeSyncQueue(setSyncSummary);
+    });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(min-width: 1024px)");
+    const updateDesktopState = () => setIsDesktop(mediaQuery.matches);
+
+    updateDesktopState();
+    mediaQuery.addEventListener("change", updateDesktopState);
+
+    return () => mediaQuery.removeEventListener("change", updateDesktopState);
+  }, []);
 
   useEffect(() => {
     const updateOnlineState = () => {
@@ -1393,6 +1434,10 @@ export const WorkspaceApp = ({
     updateMemoListWidth(nextWidth);
   };
 
+  const shouldRenderRightPane = isDesktop || activePane === "editor";
+  const rightPaneLoadingLabel =
+    rightView === "settings" ? "正在加载个人中心" : rightView === "assets" ? "正在加载资源库" : "正在加载编辑器";
+
   return (
     <div className="flex h-[100dvh] overflow-hidden bg-emerald-50 text-slate-950">
       <div className="min-w-0 flex-1">
@@ -1411,55 +1456,59 @@ export const WorkspaceApp = ({
               activePane === "notebooks" ? "block" : "hidden"
             )}
           >
-            <NotebookPane
-              authRequired={authRequired}
-              user={user}
-              selectedNotebookId={selectedNotebookId}
-              view={memoView}
-              canCreateMemo={canCreateMemo}
-              isCreatingMemo={createMemoMutation.isPending}
-              onSelect={(notebookId) => {
-                setMemoView("notebook");
-                setSelectedNotebookId(notebookId);
-                clearMemoSelection();
-                setRightView("editor");
-                setActivePane("memos");
-              }}
-              onCreateMemo={handleCreateMemo}
-              onCreateNotebook={handleCreateNotebook}
-              onRenameNotebook={handleRenameNotebook}
-              onDeleteNotebook={handleDeleteNotebook}
-              onMoveNotebook={handleMoveNotebook}
-              onMoveMemos={handleMoveDraggedMemos}
-              onBackToList={() => {
-                if (memoView === "trash") {
-                  setMemoView("notebook");
-                }
-                setSelectedNotebookId(null);
-                clearMemoSelection();
-                setRightView("editor");
-                setActivePane("memos");
-              }}
-              onLogout={onLogout}
-              isLoggingOut={isLoggingOut}
-              imageCompressionEnabled={imageCompressionEnabled}
-              onImageCompressionChange={setImageCompressionEnabled}
-              syncSummary={syncSummary}
-              isOnline={isOnline}
-              isSyncingQueuedChanges={isSyncingQueuedChanges}
-              onSyncQueuedChanges={() => void runQueuedSync()}
-              onOpenAssets={handleOpenAssets}
-              onOpenTags={handleOpenTags}
-              onOpenSettings={handleOpenSettings}
-              onOpenTrash={() => {
-                setMemoView("trash");
-                setSelectedNotebookId(null);
-                setMobileBottomNavActive("home");
-                clearMemoSelection();
-                setSelectedMemoId(null);
-                setActivePane("memos");
-              }}
-            />
+            {(isDesktop || activePane === "notebooks") && (
+              <Suspense fallback={<PaneLoadingFallback label="正在加载笔记本" />}>
+                <NotebookPane
+                  authRequired={authRequired}
+                  user={user}
+                  selectedNotebookId={selectedNotebookId}
+                  view={memoView}
+                  canCreateMemo={canCreateMemo}
+                  isCreatingMemo={createMemoMutation.isPending}
+                  onSelect={(notebookId) => {
+                    setMemoView("notebook");
+                    setSelectedNotebookId(notebookId);
+                    clearMemoSelection();
+                    setRightView("editor");
+                    setActivePane("memos");
+                  }}
+                  onCreateMemo={handleCreateMemo}
+                  onCreateNotebook={handleCreateNotebook}
+                  onRenameNotebook={handleRenameNotebook}
+                  onDeleteNotebook={handleDeleteNotebook}
+                  onMoveNotebook={handleMoveNotebook}
+                  onMoveMemos={handleMoveDraggedMemos}
+                  onBackToList={() => {
+                    if (memoView === "trash") {
+                      setMemoView("notebook");
+                    }
+                    setSelectedNotebookId(null);
+                    clearMemoSelection();
+                    setRightView("editor");
+                    setActivePane("memos");
+                  }}
+                  onLogout={onLogout}
+                  isLoggingOut={isLoggingOut}
+                  imageCompressionEnabled={imageCompressionEnabled}
+                  onImageCompressionChange={setImageCompressionEnabled}
+                  syncSummary={syncSummary}
+                  isOnline={isOnline}
+                  isSyncingQueuedChanges={isSyncingQueuedChanges}
+                  onSyncQueuedChanges={() => void runQueuedSync()}
+                  onOpenAssets={handleOpenAssets}
+                  onOpenTags={handleOpenTags}
+                  onOpenSettings={handleOpenSettings}
+                  onOpenTrash={() => {
+                    setMemoView("trash");
+                    setSelectedNotebookId(null);
+                    setMobileBottomNavActive("home");
+                    clearMemoSelection();
+                    setSelectedMemoId(null);
+                    setActivePane("memos");
+                  }}
+                />
+              </Suspense>
+            )}
           </aside>
 
           <section
@@ -1567,67 +1616,77 @@ export const WorkspaceApp = ({
           </section>
 
           <section className={cn("min-h-0 min-w-0 bg-white lg:block", activePane === "editor" ? "block" : "hidden")}>
-            {rightView === "settings" ? (
-              <SettingsPane
-                user={user}
-                onClose={handleCloseSettings}
-                imageCompressionEnabled={imageCompressionEnabled}
-                onImageCompressionChange={setImageCompressionEnabled}
-                onLogout={onLogout}
-                isLoggingOut={isLoggingOut}
-                authRequired={authRequired}
-              />
-            ) : rightView === "assets" ? (
-              <AssetsPane onClose={handleCloseAssets} />
-            ) : (
-              <EditorPane
-                memo={selectedMemo}
-                isTrashView={memoView === "trash"}
-                notebooks={notebooks}
-                isLoading={memoQuery.isLoading}
-                searchFocusToken={noteSearchFocusToken}
-                replaceFocusToken={noteReplaceFocusToken}
-                imageCompressionEnabled={imageCompressionEnabled}
-                hasNextMemo={Boolean(nextMemoId)}
-                hasPreviousMemo={Boolean(previousMemoId)}
-                onBackToList={() => setActivePane("memos")}
-                onOpenNextMemo={() => {
-                  if (nextMemoId) {
-                    setSelectedMemoId(nextMemoId);
-                  }
-                }}
-                onOpenPreviousMemo={() => {
-                  if (previousMemoId) {
-                    setSelectedMemoId(previousMemoId);
-                  }
-                }}
-                onSaved={async (memo) => {
-                  queryClient.setQueryData(["memo", memo.id], { memo });
-                  await queryClient.invalidateQueries({ queryKey: ["memos"] });
-                }}
-                onDeleted={async (memoId) => {
-                  deleteMemoMutation.mutate({ memoId, permanent: false });
-                }}
-                onPermanentDeleted={async (memoId) => {
-                  setMemoDeleteConfirmation({ kind: "single", memoIds: [memoId], permanent: true });
-                }}
-                onRestored={async (memoId) => {
-                  await restoreMemoMutation.mutateAsync(memoId);
-                }}
-              />
+            {shouldRenderRightPane && (
+              <Suspense fallback={<PaneLoadingFallback label={rightPaneLoadingLabel} />}>
+                {rightView === "settings" ? (
+                  <SettingsPane
+                    user={user}
+                    onClose={handleCloseSettings}
+                    imageCompressionEnabled={imageCompressionEnabled}
+                    onImageCompressionChange={setImageCompressionEnabled}
+                    onLogout={onLogout}
+                    isLoggingOut={isLoggingOut}
+                    authRequired={authRequired}
+                  />
+                ) : rightView === "assets" ? (
+                  <AssetsPane onClose={handleCloseAssets} />
+                ) : (
+                  <EditorPane
+                    memo={selectedMemo}
+                    isTrashView={memoView === "trash"}
+                    notebooks={notebooks}
+                    isLoading={memoQuery.isLoading}
+                    searchFocusToken={noteSearchFocusToken}
+                    replaceFocusToken={noteReplaceFocusToken}
+                    imageCompressionEnabled={imageCompressionEnabled}
+                    hasNextMemo={Boolean(nextMemoId)}
+                    hasPreviousMemo={Boolean(previousMemoId)}
+                    onBackToList={() => setActivePane("memos")}
+                    onOpenNextMemo={() => {
+                      if (nextMemoId) {
+                        setSelectedMemoId(nextMemoId);
+                      }
+                    }}
+                    onOpenPreviousMemo={() => {
+                      if (previousMemoId) {
+                        setSelectedMemoId(previousMemoId);
+                      }
+                    }}
+                    onSaved={async (memo) => {
+                      queryClient.setQueryData(["memo", memo.id], { memo });
+                      await queryClient.invalidateQueries({ queryKey: ["memos"] });
+                    }}
+                    onDeleted={async (memoId) => {
+                      deleteMemoMutation.mutate({ memoId, permanent: false });
+                    }}
+                    onPermanentDeleted={async (memoId) => {
+                      setMemoDeleteConfirmation({ kind: "single", memoIds: [memoId], permanent: true });
+                    }}
+                    onRestored={async (memoId) => {
+                      await restoreMemoMutation.mutateAsync(memoId);
+                    }}
+                  />
+                )}
+              </Suspense>
             )}
           </section>
         </main>
       </div>
 
-      {tagsOpen && <TagsDialog onClose={() => setTagsOpen(false)} />}
+      {tagsOpen && (
+        <Suspense fallback={null}>
+          <TagsDialog onClose={() => setTagsOpen(false)} />
+        </Suspense>
+      )}
       {templatesOpen && (
-        <TemplatesDialog
-          canCreateMemo={canCreateMemo}
-          isCreating={createMemoMutation.isPending}
-          onClose={handleCloseTemplates}
-          onCreateMemo={handleCreateMemo}
-        />
+        <Suspense fallback={null}>
+          <TemplatesDialog
+            canCreateMemo={canCreateMemo}
+            isCreating={createMemoMutation.isPending}
+            onClose={handleCloseTemplates}
+            onCreateMemo={handleCreateMemo}
+          />
+        </Suspense>
       )}
       {memoDeleteConfirmation && (
         <MemoDeleteConfirmDialog

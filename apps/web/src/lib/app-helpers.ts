@@ -137,19 +137,6 @@ export const filterNotebookTree = (nodes: NotebookNode[], search: string): Noteb
 };
 
 export { buildNotebookTree, type NotebookNode };
-export { localDb, type MemoUpdateSyncPayload, type SyncQueueItem, type LocalDraft } from "./local-db";
-export {
-  emptySyncQueueSummary,
-  getMemoUpdateQueueId,
-  queueMemoUpdate,
-  observeSyncQueue,
-  syncQueuedChanges,
-  shouldQueueMemoSaveError,
-  type SyncQueueSummary,
-  type SyncRunResult,
-} from "./sync-queue";
-export { compressImageForUpload } from "./image-compression";
-export { docToMarkdown } from "@edgeever/shared";
 export { DEFAULT_MEMO_TITLE };
 
 export const IMAGE_COMPRESSION_STORAGE_KEY = "edgeever.imageCompressionEnabled";

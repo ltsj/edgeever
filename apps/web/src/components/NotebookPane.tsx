@@ -30,7 +30,8 @@ import { GitHubRepositoryLink } from "./GitHubRepositoryLink";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Notebook, AuthUser } from "@edgeever/shared";
-import type { NotebookNode, NotebookDropPosition, SyncQueueSummary } from "@/lib/app-helpers";
+import type { NotebookNode, NotebookDropPosition } from "@/lib/app-helpers";
+import type { SyncQueueSummary } from "@/lib/sync-queue";
 import { buildNotebookTree, hasEdgeEverDragData } from "@/lib/app-helpers";
 
 const NOTEBOOK_DRAG_SCROLL_EDGE_PX = 56;

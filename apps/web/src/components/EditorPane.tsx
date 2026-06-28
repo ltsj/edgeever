@@ -47,17 +47,13 @@ import { EditorToolbar } from "./EditorToolbar";
 import { RevisionHistoryDialog } from "./dialogs/RevisionHistoryDialog";
 import { api } from "@/lib/api";
 import { cn, formatDateTime, parseTagsText } from "@/lib/utils";
-import type { Notebook, MemoDetail, TiptapDoc } from "@edgeever/shared";
-import type { MemoUpdateSyncPayload } from "@/lib/app-helpers";
+import { docToMarkdown, type Notebook, type MemoDetail, type TiptapDoc } from "@edgeever/shared";
+import { compressImageForUpload } from "@/lib/image-compression";
+import { localDb, type MemoUpdateSyncPayload } from "@/lib/local-db";
+import { getMemoUpdateQueueId, queueMemoUpdate, shouldQueueMemoSaveError } from "@/lib/sync-queue";
 import {
   getNotebookMoveOptions,
   DEFAULT_MEMO_TITLE,
-  localDb,
-  getMemoUpdateQueueId,
-  compressImageForUpload,
-  docToMarkdown,
-  shouldQueueMemoSaveError,
-  queueMemoUpdate,
 } from "@/lib/app-helpers";
 
 const SUPPORTED_PASTE_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "image/avif"]);
