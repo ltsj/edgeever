@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, CircleQuestionMark, Copy, Image, KeyRound, LogOut, Plus, ShieldCheck, Trash2, User } from "lucide-react";
+import { ChevronLeft, Copy, Image, KeyRound, LogOut, Plus, ShieldCheck, Trash2, User } from "lucide-react";
 import type { ApiToken, AuthUser } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { api } from "@/lib/api";
@@ -186,6 +187,7 @@ const getEdgeEverBaseUrl = () => {
 
 const McpTitleWithHelp = () => {
   const baseUrl = getEdgeEverBaseUrl();
+  const [copied, setCopied] = useState(false);
   const remoteExample = JSON.stringify(
     {
       mcpServers: {
@@ -200,25 +202,49 @@ const McpTitleWithHelp = () => {
     null,
     2
   );
+
+  const handleCopy = async () => {
+    if (!(await copyTextToClipboard(remoteExample))) {
+      return;
+    }
+
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
+
   return (
-    <div className="group/help relative w-fit max-w-full">
+    <div className="w-fit max-w-full">
       <CardTitle className="flex items-center gap-2 text-sm">
         <KeyRound className="h-4 w-4 text-emerald-700" />
         API & MCP 授权
-        <button
-          className="flex h-6 w-6 items-center justify-center rounded-md border border-emerald-100 bg-emerald-50/70 text-emerald-700 shadow-sm transition-colors hover:border-emerald-200 hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/70"
-          type="button"
-          aria-label="查看 MCP 使用示例"
-        >
-          <CircleQuestionMark className="h-3.5 w-3.5" />
-        </button>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Button size="sm" variant="outline" className="h-7 bg-white px-2.5 text-xs" type="button">
+              使用示例
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl gap-3 p-4 sm:p-5">
+            <DialogHeader>
+              <DialogTitle className="text-base">Remote MCP 示例</DialogTitle>
+            </DialogHeader>
+            <pre className="max-h-[55vh] overflow-auto rounded-md border border-slate-100 bg-slate-950 p-3 text-left text-[11px] leading-5 text-slate-100 sm:text-xs">
+              <code>{remoteExample}</code>
+            </pre>
+            <div className="flex justify-end">
+              <Button
+                size="md"
+                variant="solid"
+                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                type="button"
+                onClick={() => void handleCopy()}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                {copied ? "已复制" : "复制示例"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </CardTitle>
-      <div className="absolute left-0 top-full z-30 mt-2 hidden w-[min(42rem,calc(100vw-2rem))] rounded-lg border border-slate-200 bg-white p-3 text-left shadow-lg group-hover/help:block group-focus-within/help:block">
-        <span className="mb-2 block text-xs font-semibold text-slate-500">Remote MCP 示例</span>
-        <pre className="max-h-44 overflow-auto rounded-md border border-slate-100 bg-slate-950 p-3 text-[11px] leading-5 text-slate-100">
-          <code>{remoteExample}</code>
-        </pre>
-      </div>
     </div>
   );
 };
