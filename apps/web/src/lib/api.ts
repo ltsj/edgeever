@@ -6,6 +6,7 @@ import type {
   MemoRevision,
   MemoSummary,
   Notebook,
+  ProfileSnapshot,
   Resource,
   ResourceListItem,
   ResourceStorageSummary,
@@ -32,6 +33,10 @@ type ListResourcesResponse = {
 
 type ListTagsResponse = {
   tags: TagSummary[];
+};
+
+type ProfileResponse = {
+  profile: ProfileSnapshot | null;
 };
 
 type ListApiTokensResponse = {
@@ -139,6 +144,14 @@ export const api = {
   deleteTag: (tag: string) =>
     request<{ ok: true; updated: number }>(`/api/v1/tags/${encodeURIComponent(tag)}`, {
       method: "DELETE",
+    }),
+
+  getProfile: () => request<ProfileResponse>("/api/v1/profile"),
+
+  generateProfile: () =>
+    request<ProfileResponse>("/api/v1/profile/generate", {
+      method: "POST",
+      body: JSON.stringify({}),
     }),
 
   listApiTokens: () => request<ListApiTokensResponse>("/api/v1/api-tokens"),

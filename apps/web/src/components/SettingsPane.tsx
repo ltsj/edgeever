@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, Copy, HelpCircle, Image, KeyRound, LogOut, Plus, ShieldCheck, Trash2, UploadCloud, User } from "lucide-react";
-import type { ApiToken, AuthUser } from "@edgeever/shared";
+import { Brain, ChevronLeft, Copy, HelpCircle, Image, KeyRound, LogOut, Plus, RefreshCw, ShieldCheck, Sparkles, Trash2, UploadCloud, User } from "lucide-react";
+import type { ApiToken, AuthUser, ProfileSnapshot } from "@edgeever/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -22,6 +22,8 @@ const ALL_TOKEN_SCOPES = [
   "write:resources",
   "read:tags",
   "write:tags",
+  "read:profile",
+  "write:profile",
 ];
 
 const TOKEN_SCOPE_LABELS: Record<string, string> = {
@@ -33,6 +35,8 @@ const TOKEN_SCOPE_LABELS: Record<string, string> = {
   "write:resources": "上传与修改附件",
   "read:tags": "读取标签",
   "write:tags": "创建与修改标签",
+  "read:profile": "读取人物画像",
+  "write:profile": "生成人物画像",
 };
 
 const getTokenScopeLabel = (scope: string) => TOKEN_SCOPE_LABELS[scope] ?? scope;
@@ -126,6 +130,107 @@ const PreferenceCard = ({ imageCompressionEnabled, onImageCompressionChange }: P
           />
         </div>
       </div>
+    </CardContent>
+  </Card>
+);
+
+interface PersonaProfileCardProps {
+  profile: ProfileSnapshot | null;
+  isLoading: boolean;
+  isGenerating: boolean;
+  errorMessage?: string;
+  onGenerate: () => void;
+}
+
+const confidenceLabel: Record<ProfileSnapshot["sections"][number]["insights"][number]["confidence"], string> = {
+  low: "线索较弱",
+  medium: "有一定依据",
+  high: "依据较多",
+};
+
+const PersonaProfileCard = ({ profile, isLoading, isGenerating, errorMessage, onGenerate }: PersonaProfileCardProps) => (
+  <Card className="w-full min-w-0 overflow-hidden shadow-none">
+    <CardHeader className="p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Brain className="h-4 w-4 text-emerald-700" />
+            人物画像
+          </CardTitle>
+          <CardDescription className="mt-1 text-xs leading-4">
+            基于现有笔记手动生成，结果会缓存为快照。
+          </CardDescription>
+        </div>
+        <Button
+          size="sm"
+          variant="solid"
+          className="h-8 w-full whitespace-nowrap bg-emerald-600 text-white hover:bg-emerald-700 sm:w-auto"
+          type="button"
+          disabled={isGenerating || isLoading}
+          onClick={onGenerate}
+        >
+          {isGenerating ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+          {profile ? "重新生成" : "生成画像"}
+        </Button>
+      </div>
+    </CardHeader>
+    <CardContent className="space-y-4 p-4 pt-0">
+      {errorMessage && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium leading-5 text-amber-900">
+          {errorMessage}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-400">
+          正在读取画像快照...
+        </div>
+      ) : profile ? (
+        <div className="space-y-4">
+          <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
+            <p className="text-sm font-medium leading-6 text-slate-800">{profile.summary}</p>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold text-emerald-800">
+              <span className="rounded-md bg-white px-2 py-1">分析笔记 {profile.memoCount} 条</span>
+              <span className="rounded-md bg-white px-2 py-1">{formatDateTime(profile.generatedAt)}</span>
+              <span className="max-w-full truncate rounded-md bg-white px-2 py-1" title={profile.model}>
+                {profile.model}
+              </span>
+            </div>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-2">
+            {profile.sections.map((section) => (
+              <div key={section.title} className="rounded-lg border border-slate-200 bg-white p-3">
+                <h3 className="text-sm font-bold text-slate-900">{section.title}</h3>
+                <div className="mt-3 space-y-3">
+                  {section.insights.map((insight) => (
+                    <div key={`${section.title}-${insight.label}`} className="border-t border-slate-100 pt-3 first:border-t-0 first:pt-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 text-sm font-semibold text-slate-800">{insight.label}</div>
+                        <span className="shrink-0 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+                          {confidenceLabel[insight.confidence]}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-slate-600">{insight.description}</p>
+                      {insight.evidence.memoIds.length > 0 && (
+                        <div className="mt-2 text-[11px] font-medium text-slate-400">
+                          来源 {insight.evidence.memoIds.length} 条笔记
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-slate-200 px-4 py-8 text-center">
+          <div className="text-sm font-semibold text-slate-700">还没有人物画像快照</div>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">
+            点击生成后，EdgeEver 会调用 Cloudflare Workers AI 分析现有笔记，并把结果保存在 D1。
+          </p>
+        </div>
+      )}
     </CardContent>
   </Card>
 );
@@ -608,8 +713,14 @@ export const SettingsPane = ({
     queryFn: () => api.listApiTokens(),
   });
 
+  const profileQuery = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => api.getProfile(),
+  });
+
   const availableScopes = tokensQuery.data?.availableScopes ?? ALL_TOKEN_SCOPES;
   const tokens = tokensQuery.data?.apiTokens ?? [];
+  const profile = profileQuery.data?.profile ?? null;
 
   useEffect(() => {
     if (scopeDefaultsSynced || !tokensQuery.data?.availableScopes) {
@@ -634,6 +745,14 @@ export const SettingsPane = ({
     mutationFn: api.revokeApiToken,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
+    },
+  });
+
+  const generateProfileMutation = useMutation({
+    mutationFn: api.generateProfile,
+    onSuccess: async (data) => {
+      queryClient.setQueryData(["profile"], data);
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
     },
   });
 
@@ -690,6 +809,13 @@ export const SettingsPane = ({
           <PreferenceCard
             imageCompressionEnabled={imageCompressionEnabled}
             onImageCompressionChange={onImageCompressionChange}
+          />
+          <PersonaProfileCard
+            profile={profile}
+            isLoading={profileQuery.isLoading}
+            isGenerating={generateProfileMutation.isPending}
+            errorMessage={generateProfileMutation.error?.message ?? profileQuery.error?.message}
+            onGenerate={() => generateProfileMutation.mutate()}
           />
           <EvernoteImportGuideCard onShowGuide={onShowGuide} />
           <TokenCard
