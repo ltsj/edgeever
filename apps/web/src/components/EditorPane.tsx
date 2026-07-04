@@ -80,6 +80,9 @@ type NoteSearchMatch = {
 const isEditorReady = (editor: Editor | null | undefined): editor is Editor =>
   Boolean(editor && !editor.isDestroyed && (editor as { extensionManager?: unknown }).extensionManager);
 
+const isEditorComposing = (editor: Editor | null | undefined) =>
+  isEditorReady(editor) && Boolean((editor.view as { composing?: boolean }).composing);
+
 const getEditorSearchMatches = (editor: Editor | null, query: string): NoteSearchMatch[] => {
   const needle = query.trim().toLocaleLowerCase();
 
@@ -449,7 +452,7 @@ export const EditorPane = ({
   const autoSaveTimerRef = useRef<number | null>(null);
   const pendingBackAfterSaveRef = useRef(false);
   const toolbarRefreshFrameRef = useRef<number | null>(null);
-  const isComposingRef = useRef(false);
+  const compositionDraftPendingRef = useRef(false);
   const lastAutoSaveVersionRef = useRef(0);
   const unsavedSinceRef = useRef<number | null>(null);
   const draftTitleRef = useRef("");
@@ -466,7 +469,7 @@ export const EditorPane = ({
   const scheduleAutoSave = useCallback(() => {
     clearAutoSaveTimer();
 
-    if (isComposingRef.current) {
+    if (isEditorComposing(editorRef.current)) {
       return;
     }
 
@@ -480,7 +483,7 @@ export const EditorPane = ({
     autoSaveTimerRef.current = window.setTimeout(() => {
       autoSaveTimerRef.current = null;
 
-      if (isComposingRef.current) {
+      if (isEditorComposing(editorRef.current)) {
         return;
       }
 
@@ -688,18 +691,6 @@ export const EditorPane = ({
         event.preventDefault();
         insertImageFiles(files);
         return true;
-      },
-      handleDOMEvents: {
-        compositionstart: () => {
-          isComposingRef.current = true;
-          clearAutoSaveTimer();
-          return false;
-        },
-        compositionend: () => {
-          isComposingRef.current = false;
-          scheduleAutoSave();
-          return false;
-        },
       },
     },
   });
@@ -946,6 +937,7 @@ export const EditorPane = ({
       memoRef.current = null;
       editingMemoIdRef.current = null;
       hasUnsavedChangesRef.current = false;
+      compositionDraftPendingRef.current = false;
       unsavedSinceRef.current = null;
       draftTitleRef.current = "";
       draftTagsTextRef.current = "";
@@ -1003,6 +995,7 @@ export const EditorPane = ({
       hydratingRef.current = true;
       editingMemoIdRef.current = memo.id;
       hasUnsavedChangesRef.current = nextHasUnsavedChanges;
+      compositionDraftPendingRef.current = false;
       unsavedSinceRef.current = nextHasUnsavedChanges ? Date.now() : null;
       draftTitleRef.current = nextTitle;
       draftTagsTextRef.current = nextTagsText;
@@ -1040,18 +1033,24 @@ export const EditorPane = ({
       if (hydratingRef.current || memoRef.current?.isDeleted) {
         return;
       }
+
+      if (isEditorComposing(editorRef.current)) {
+        compositionDraftPendingRef.current = true;
+        clearAutoSaveTimer();
+        return;
+      }
+
+      compositionDraftPendingRef.current = false;
       persistCurrentDraft();
       markDirty();
-      if (!isComposingRef.current) {
-        scheduleAutoSave();
-      }
+      scheduleAutoSave();
     };
 
     editor.on("update", persistDraft);
     return () => {
       editor.off("update", persistDraft);
     };
-  }, [editor, markDirty, memo, persistCurrentDraft, scheduleAutoSave]);
+  }, [clearAutoSaveTimer, editor, markDirty, memo, persistCurrentDraft, scheduleAutoSave]);
 
   useEffect(() => {
     return () => {
@@ -1122,6 +1121,7 @@ export const EditorPane = ({
 
       if (currentSnapshot() === snapshot) {
         hasUnsavedChangesRef.current = false;
+        compositionDraftPendingRef.current = false;
         unsavedSinceRef.current = null;
         setHasUnsavedChanges(false);
         await localDb.drafts.delete(savedMemo.id);
@@ -1132,6 +1132,7 @@ export const EditorPane = ({
 
       persistCurrentDraft();
       hasUnsavedChangesRef.current = true;
+      compositionDraftPendingRef.current = false;
       unsavedSinceRef.current = Date.now();
       setHasUnsavedChanges(true);
       setSaveState("idle");
@@ -1160,6 +1161,7 @@ export const EditorPane = ({
         });
 
         hasUnsavedChangesRef.current = false;
+        compositionDraftPendingRef.current = false;
         unsavedSinceRef.current = null;
         setHasUnsavedChanges(false);
         setSaveState("queued");
@@ -1190,14 +1192,14 @@ export const EditorPane = ({
   }, [autoSaveVersion, editor, hasUnsavedChanges, memo, saveBlocked, saveMutation, saveState]);
 
   useEffect(() => {
-    if (!saveBlocked && hasUnsavedChangesRef.current && !isComposingRef.current) {
+    if (!saveBlocked && hasUnsavedChangesRef.current && !isEditorComposing(editorRef.current)) {
       scheduleAutoSave();
     }
   }, [memo?.id, saveBlocked, scheduleAutoSave]);
 
   useEffect(() => {
     const flushBeforeBackground = () => {
-      if (!hasUnsavedChangesRef.current) {
+      if (!hasUnsavedChangesRef.current && !compositionDraftPendingRef.current) {
         return;
       }
 
@@ -1209,7 +1211,7 @@ export const EditorPane = ({
       void writeCurrentDraftNow();
 
       if (
-        isComposingRef.current ||
+        isEditorComposing(editorRef.current) ||
         saveBlocked ||
         saveMutation.isPending ||
         saveStateRef.current === "conflict"
@@ -1242,7 +1244,7 @@ export const EditorPane = ({
       !memo ||
       memo.isDeleted ||
       !editor ||
-      !hasUnsavedChanges ||
+      (!hasUnsavedChanges && !compositionDraftPendingRef.current) ||
       saveMutation.isPending ||
       saveState === "conflict"
     ) {
@@ -1385,8 +1387,9 @@ export const EditorPane = ({
 
   const handleMobileBack = () => {
     clearAutoSaveTimer();
+    const hasPendingEditorChanges = hasUnsavedChanges || compositionDraftPendingRef.current;
 
-    if (saveBlocked && editor && hasUnsavedChanges) {
+    if (saveBlocked && editor && hasPendingEditorChanges) {
       pendingBackAfterSaveRef.current = true;
       setSaveState("saving");
       setIsMobileEditing(false);
@@ -1394,7 +1397,7 @@ export const EditorPane = ({
       return;
     }
 
-    if (readOnly || saveBlocked || !editor || !hasUnsavedChanges) {
+    if (readOnly || saveBlocked || !editor || !hasPendingEditorChanges) {
       onBackToList();
       return;
     }
@@ -1412,8 +1415,9 @@ export const EditorPane = ({
 
   const handleMobileDone = () => {
     clearAutoSaveTimer();
+    const hasPendingEditorChanges = hasUnsavedChanges || compositionDraftPendingRef.current;
 
-    if (readOnly || saveBlocked || !editor || !hasUnsavedChanges) {
+    if (readOnly || saveBlocked || !editor || !hasPendingEditorChanges) {
       setIsMobileEditing(false);
       setMobileToolbarOpen(false);
       return;
