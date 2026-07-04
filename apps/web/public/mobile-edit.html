@@ -171,7 +171,7 @@
     <script>
       const AUTO_SAVE_DELAY_MS = 1200;
       const DRAFT_STORAGE_PREFIX = "edgeever-mobile-edit-draft:";
-      const params = new URLSearchParams(location.search);
+      const params = new URLSearchParams(location.hash ? location.hash.slice(1) : location.search);
       const memoId = params.get("memoId");
       const returnTo = params.get("returnTo") || "/";
       const titleInput = document.getElementById("title");

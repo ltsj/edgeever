@@ -84,7 +84,7 @@ const openStandaloneMobileEditor = (memoId: string) => {
     memoId,
     returnTo: "/",
   });
-  window.location.href = `/mobile-edit.html?${params.toString()}`;
+  window.location.href = `/mobile-edit.html#${params.toString()}`;
 };
 
 const getVerticalScrollContainer = (target: EventTarget | null) => {
