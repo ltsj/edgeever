@@ -87,17 +87,17 @@ export const UserManagementCard = () => {
         <CardContent className="grid gap-2 p-4 pt-0">
           {usersQuery.isLoading ? <p className="text-sm text-slate-500">{t("users.loading")}</p> : null}
           {usersQuery.data?.users.map((user) => (
-            <div key={user.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3">
+            <div key={user.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3 bg-white/40 dark:bg-slate-900/10">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-800">{user.displayName || user.username}</p>
-                <p className="truncate text-xs text-slate-500">@{user.username} · {t(`users.roles.${user.role}`)}</p>
+                <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{user.displayName || user.username}</p>
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">@{user.username} · {t(`users.roles.${user.role}`)}</p>
               </div>
               <div className="flex items-center gap-3">
                 <Button size="sm" variant="outline" onClick={() => setResetUser(user)}>
                   <KeyRound className="h-3.5 w-3.5" /> {t("users.resetPassword")}
                 </Button>
                 {user.role !== "owner" ? (
-                  <label className="flex items-center gap-2 text-xs text-slate-600">
+                  <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                     {user.isDisabled ? t("users.disabled") : t("users.enabled")}
                     <Switch
                       checked={!user.isDisabled}

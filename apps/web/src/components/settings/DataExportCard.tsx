@@ -29,7 +29,7 @@ type OperationKind = "export" | "import";
 const Progress = ({ progress }: { progress: EdgeEverZipProgress }) => {
   const percentage = progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0;
   return (
-    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+    <div className="h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
       <div className="h-full rounded-full bg-emerald-600 transition-[width]" style={{ width: `${percentage}%` }} />
     </div>
   );
@@ -146,7 +146,7 @@ export const DataExportCard = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 p-4 pt-0">
-          <div className="grid gap-2 rounded-lg border border-slate-200 p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+          <div className="grid gap-2 rounded-lg border border-slate-200 dark:border-slate-800 p-3 bg-white/40 dark:bg-slate-900/10 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
             <div className="min-w-0">
               <CardDescription className="text-xs leading-5">{t("dataExport.description")}</CardDescription>
             </div>
