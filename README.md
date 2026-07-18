@@ -97,7 +97,7 @@ The Chrome/Edge web clipper is complete and pending store publication.
 
 ## Native Clients
 
-The Android app is built with Expo and React Native as a true native client. It connects directly to a self-hosted EdgeEver API and implements the mobile workspace with native views instead of embedding the PWA. A SQLite local mirror serves notebooks, note lists, search, and note details immediately; cursor-based delta sync and an offline create/edit queue reconcile changes in the background while keeping the PWA's features and visual language aligned.
+The initial app version is complete and currently under store review.
 
 The desktop app remains on the roadmap and is planned to use Tauri.
 
@@ -107,6 +107,7 @@ The desktop app remains on the roadmap and is planned to use Tauri.
 - Official site: Astro static site in `apps/site`, deployable to Cloudflare Pages.
 - Frontend: Vite, React, React Router, TanStack Query, Tailwind CSS, shadcn/ui, and Radix UI.
 - Editor: TipTap / ProseMirror with Markdown support; PWA uses vite-plugin-pwa, Workbox, and Dexie.
+- Mobile app: Expo, React Native, Expo Router, TanStack Query, Expo SQLite, and AsyncStorage, with a local data mirror, incremental sync, and offline note creation and editing.
 - Web clipper: Manifest V3, Mozilla Readability, and Turndown for Chrome and Microsoft Edge.
 - Backend: Cloudflare Workers, Hono, Zod, D1, and R2, with REST API, OpenAPI, and Remote MCP.
 

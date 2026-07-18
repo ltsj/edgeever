@@ -96,7 +96,7 @@ Chrome/Edge 网页裁剪插件已开发完成，待上架。
 
 ## 关于客户端
 
-Android App 基于 Expo 与 React Native 构建为真正的原生客户端，直接连接自托管 EdgeEver API，不再把 PWA 嵌入 App。SQLite 本地镜像会即时提供笔记本、笔记列表、搜索和笔记详情；基于游标的增量同步与离线新建/编辑队列在后台完成云端对账，同时持续对齐移动 PWA 的功能与视觉语言。
+APP端初版已开发完成，上架审核中。
 
 桌面端 App 仍在规划中，计划基于 Tauri 构建。
 
@@ -106,6 +106,7 @@ Android App 基于 Expo 与 React Native 构建为真正的原生客户端，直
 - 官网：Astro 静态站点，位于 `apps/site`，可独立构建并部署到 Cloudflare Pages。
 - 前端：Vite、React、React Router、TanStack Query，UI 基于 Tailwind CSS、shadcn/ui、Radix UI。
 - 编辑器：TipTap / ProseMirror，支持 Markdown；PWA 使用 vite-plugin-pwa、Workbox、Dexie。
+- 移动 App：Expo、React Native、Expo Router、TanStack Query、Expo SQLite 与 AsyncStorage，支持本地数据镜像、增量同步及离线新建和编辑。
 - 网页裁剪：Manifest V3、Mozilla Readability、Turndown，支持 Chrome 与 Microsoft Edge。
 - 后端：Cloudflare Workers、Hono、Zod、D1、R2，提供 REST API、OpenAPI 与 Remote MCP。
 
