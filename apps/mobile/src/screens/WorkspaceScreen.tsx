@@ -2063,7 +2063,6 @@ const CreateMemoModal = ({
   const [tagsText, setTagsText] = useState("");
   const [contentMarkdown, setContentMarkdown] = useState("");
   const [contentSelection, setContentSelection] = useState<TextSelection>({ start: 0, end: 0 });
-  const [insertTextOpen, setInsertTextOpen] = useState(false);
   const [notebookPickerOpen, setNotebookPickerOpen] = useState(false);
   const targetNotebookId = notebookId || fallbackNotebookId;
   const selectedNotebookName = notebooks.find((notebook) => notebook.id === targetNotebookId)?.name ?? "选择笔记本";
@@ -2130,69 +2129,93 @@ const CreateMemoModal = ({
   });
   const canSubmitCreateMemo = Boolean(targetNotebookId) && !createMutation.isPending;
 
-  const pasteClipboardText = async () => {
+  const insertImageLinkFromClipboard = async () => {
     const text = await Clipboard.getStringAsync();
 
-    if (!text.trim()) {
+    const url = text.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      Alert.alert("未找到图片链接", "请先复制一个以 http:// 或 https:// 开头的图片链接。");
       return;
     }
 
-    const next = insertPlainText(contentMarkdown, contentSelection, text);
+    const next = insertPlainText(contentMarkdown, contentSelection, `![图片](${url})`);
     setContentMarkdown(next.value);
     setContentSelection(next.selection);
   };
 
-  const insertManualText = (text: string) => {
-    const next = insertPlainText(contentMarkdown, contentSelection, text);
+  const applyCreateEditorAction = (action: MarkdownAction) => {
+    const next = applyMarkdownAction(contentMarkdown, contentSelection, action);
     setContentMarkdown(next.value);
     setContentSelection(next.selection);
   };
 
   return (
-    <Modal animationType="slide" onRequestClose={() => !createMutation.isPending && onClose()} presentationStyle="pageSheet" visible={visible}>
-      <SafeAreaView style={styles.modalSafeArea}>
-        <View style={styles.modalHeader}>
-          <IconButton accessibilityLabel="关闭新建" disabled={createMutation.isPending} onPress={onClose}>
-            <X color={createMutation.isPending ? "#cbd5e1" : "#0f172a"} size={20} />
-          </IconButton>
-          <Text style={styles.modalTitle}>新建笔记</Text>
-          <IconButton accessibilityLabel="创建笔记" disabled={!canSubmitCreateMemo} onPress={() => createMutation.mutate()}>
-            {createMutation.isPending ? <ActivityIndicator color="#0f172a" /> : <Check color={canSubmitCreateMemo ? "#0f172a" : "#cbd5e1"} size={20} />}
-          </IconButton>
+    <Modal animationType="slide" onRequestClose={() => !createMutation.isPending && onClose()} presentationStyle="fullScreen" visible={visible}>
+      <SafeAreaView style={styles.createMemoSafeArea}>
+        <View style={styles.createMemoHeader}>
+          <Pressable accessibilityLabel="返回" disabled={createMutation.isPending} onPress={onClose} style={styles.createMemoBackButton}>
+            <ChevronLeft color={createMutation.isPending ? "#cbd5e1" : "#0f172a"} size={30} />
+          </Pressable>
+          <View style={styles.createMemoHeaderActions}>
+            <Text style={[styles.createMemoStatus, createMutation.isPending && styles.createMemoStatusActive]}>
+              {createMutation.isPending ? "保存中" : "未保存"}
+            </Text>
+            <Pressable
+              accessibilityLabel="完成新建笔记"
+              disabled={!canSubmitCreateMemo}
+              onPress={() => createMutation.mutate()}
+              style={[styles.createMemoDoneButton, !canSubmitCreateMemo && styles.createMemoDoneButtonDisabled]}
+            >
+              {createMutation.isPending ? <ActivityIndicator color="#64748b" size="small" /> : <Text style={[styles.createMemoDoneText, !canSubmitCreateMemo && styles.createMemoDoneTextDisabled]}>完成</Text>}
+            </Pressable>
+          </View>
         </View>
 
-        <ScrollView contentContainerStyle={styles.editorForm}>
-          <Text style={styles.label}>笔记本</Text>
-          <Pressable accessibilityRole="button" onPress={() => setNotebookPickerOpen(true)} style={styles.editorNotebookButton}>
-            <Folder color="#64748b" size={18} />
-            <Text numberOfLines={1} style={styles.editorNotebookButtonText}>{selectedNotebookName}</Text>
-            <ChevronRight color="#94a3b8" size={18} />
-          </Pressable>
-
-          <Text style={styles.label}>标题</Text>
-          <TextInput onChangeText={setTitle} placeholder={DEFAULT_MEMO_TITLE} placeholderTextColor="#94a3b8" style={styles.titleInput} value={title} />
-
-          <Text style={styles.label}>标签</Text>
-          <TextInput onChangeText={setTagsText} placeholder="用逗号分隔标签" placeholderTextColor="#94a3b8" style={styles.titleInput} value={tagsText} />
-
-          <Text style={styles.label}>正文</Text>
-          <MarkdownToolbar
-            onAction={(action) => {
-              const next = applyMarkdownAction(contentMarkdown, contentSelection, action);
-              setContentMarkdown(next.value);
-              setContentSelection(next.selection);
-            }}
-            onInsertText={() => setInsertTextOpen(true)}
-            onPasteText={() => void pasteClipboardText()}
+        <ScrollView
+          contentContainerStyle={styles.createMemoMain}
+          keyboardShouldPersistTaps="handled"
+          style={styles.createMemoScroll}
+        >
+          <TextInput
+            autoCorrect
+            onChangeText={setTitle}
+            placeholder={DEFAULT_MEMO_TITLE}
+            placeholderTextColor="#94a3b8"
+            style={styles.createMemoTitleInput}
+            value={title}
           />
+
+          <View style={styles.createMemoMetaRow}>
+            <Pressable accessibilityLabel="所在笔记本" accessibilityRole="button" onPress={() => setNotebookPickerOpen(true)} style={styles.createMemoNotebookButton}>
+              <Text numberOfLines={1} style={styles.createMemoNotebookText}>{selectedNotebookName}</Text>
+              <ChevronDown color="#64748b" size={14} />
+            </Pressable>
+            <TextInput
+              autoCorrect
+              onChangeText={setTagsText}
+              placeholder="添加标签，用逗号分隔"
+              placeholderTextColor="#94a3b8"
+              style={styles.createMemoTagsInput}
+              value={tagsText}
+            />
+          </View>
+
+          <View style={styles.createMemoToolbar}>
+            <CreateMemoToolbarButton accessibilityLabel="从剪贴板插入图片链接" icon={<ImagePlus color="#64748b" size={18} />} onPress={() => void insertImageLinkFromClipboard()} />
+            <CreateMemoToolbarButton accessibilityLabel="加粗" icon={<Bold color="#64748b" size={17} />} onPress={() => applyCreateEditorAction("bold")} />
+            <CreateMemoToolbarButton accessibilityLabel="无序列表" icon={<List color="#64748b" size={18} />} onPress={() => applyCreateEditorAction("bullet")} />
+            <CreateMemoToolbarButton accessibilityLabel="引用" icon={<Quote color="#64748b" size={17} />} onPress={() => applyCreateEditorAction("quote")} />
+            <CreateMemoToolbarButton accessibilityLabel="分割线" icon={<Minus color="#64748b" size={18} />} onPress={() => applyCreateEditorAction("horizontalRule")} />
+          </View>
+
           <TextInput
             multiline
             onChangeText={setContentMarkdown}
             onSelectionChange={(event) => setContentSelection(event.nativeEvent.selection)}
-            placeholder="输入正文，可用上方工具插入 Markdown 格式"
+            placeholder="开始记录..."
             placeholderTextColor="#94a3b8"
             selection={contentSelection}
-            style={styles.markdownInput}
+            style={styles.createMemoContentInput}
             textAlignVertical="top"
             value={contentMarkdown}
           />
@@ -2201,7 +2224,6 @@ const CreateMemoModal = ({
             <Text style={styles.errorText}>{createMutation.error instanceof Error ? createMutation.error.message : "创建失败"}</Text>
           ) : null}
         </ScrollView>
-        <InsertTextModal onClose={() => setInsertTextOpen(false)} onInsert={insertManualText} visible={insertTextOpen} />
         <NotebookPickerModal
           activeNotebookId={targetNotebookId}
           notebookSortMode="manual"
@@ -5187,6 +5209,25 @@ const MarkdownToolbarButton = ({
   </Pressable>
 );
 
+const CreateMemoToolbarButton = ({
+  accessibilityLabel,
+  icon,
+  onPress,
+}: {
+  accessibilityLabel: string;
+  icon: ReactNode;
+  onPress: () => void;
+}) => (
+  <Pressable
+    accessibilityLabel={accessibilityLabel}
+    accessibilityRole="button"
+    onPress={onPress}
+    style={({ pressed }) => [styles.createMemoToolButton, pressed && styles.createMemoToolButtonPressed]}
+  >
+    {icon}
+  </Pressable>
+);
+
 const InsertTextModal = ({
   onClose,
   onInsert,
@@ -6841,6 +6882,153 @@ const styles = StyleSheet.create({
   modalSafeArea: {
     backgroundColor: "#f8fafc",
     flex: 1,
+  },
+  createMemoSafeArea: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+  },
+  createMemoHeader: {
+    alignItems: "center",
+    backgroundColor: "#ffffff",
+    borderBottomColor: "#f1f5f9",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "space-between",
+    minHeight: 52,
+    paddingBottom: 8,
+    paddingHorizontal: 12,
+    paddingTop: 8,
+  },
+  createMemoBackButton: {
+    alignItems: "center",
+    borderRadius: 999,
+    height: 38,
+    justifyContent: "center",
+    width: 38,
+  },
+  createMemoHeaderActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+  },
+  createMemoStatus: {
+    backgroundColor: "#f1f5f9",
+    borderRadius: 999,
+    color: "#64748b",
+    fontSize: 12,
+    fontWeight: "700",
+    overflow: "hidden",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  createMemoStatusActive: {
+    backgroundColor: "#ecfdf5",
+    color: "#047857",
+  },
+  createMemoDoneButton: {
+    alignItems: "center",
+    backgroundColor: "#020617",
+    borderRadius: 999,
+    justifyContent: "center",
+    minHeight: 36,
+    minWidth: 58,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  createMemoDoneButtonDisabled: {
+    backgroundColor: "#e2e8f0",
+  },
+  createMemoDoneText: {
+    color: "#ffffff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  createMemoDoneTextDisabled: {
+    color: "#64748b",
+  },
+  createMemoScroll: {
+    backgroundColor: "#ffffff",
+    flex: 1,
+  },
+  createMemoMain: {
+    flexGrow: 1,
+    paddingBottom: 32,
+    paddingHorizontal: 12,
+    paddingTop: 14,
+  },
+  createMemoTitleInput: {
+    color: "#0f172a",
+    fontSize: 28,
+    fontWeight: "800",
+    lineHeight: 34,
+    minHeight: 42,
+    padding: 0,
+  },
+  createMemoMetaRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+    minHeight: 40,
+  },
+  createMemoNotebookButton: {
+    alignItems: "center",
+    flexDirection: "row",
+    flexShrink: 1,
+    gap: 3,
+    maxWidth: "46%",
+    minHeight: 30,
+    paddingRight: 5,
+  },
+  createMemoNotebookText: {
+    color: "#64748b",
+    flexShrink: 1,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  createMemoTagsInput: {
+    color: "#64748b",
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 23,
+    minHeight: 36,
+    minWidth: 0,
+    padding: 0,
+  },
+  createMemoToolbar: {
+    alignItems: "center",
+    borderBottomColor: "#f1f5f9",
+    borderBottomWidth: 1,
+    borderTopColor: "#f1f5f9",
+    borderTopWidth: 1,
+    flexDirection: "row",
+    gap: 4,
+    marginHorizontal: -12,
+    minHeight: 45,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  createMemoToolButton: {
+    alignItems: "center",
+    borderColor: "transparent",
+    borderRadius: 999,
+    borderWidth: 1,
+    height: 32,
+    justifyContent: "center",
+    width: 36,
+  },
+  createMemoToolButtonPressed: {
+    backgroundColor: "#ecfdf5",
+    borderColor: "#bbf7d0",
+  },
+  createMemoContentInput: {
+    color: "#020617",
+    flex: 1,
+    fontSize: 17,
+    lineHeight: 29,
+    minHeight: 420,
+    paddingHorizontal: 0,
+    paddingTop: 18,
   },
   richEditorSafeArea: {
     backgroundColor: "#ffffff",
