@@ -5,6 +5,15 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { EditorContent, useEditor, useEditorState } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { TiptapDoc } from "@edgeever/shared";
+import {
+  MOBILE_EDITOR_ACTIVE_FLAGS,
+  MOBILE_EDITOR_TOOLBAR_ACTIONS,
+  getMobileEditorInputAttributes,
+  getMobileEditorPlaceholder,
+  getMobileEditorToolbarActionLabel,
+  getMobileEditorToolbarLabel,
+  type MobileEditorToolbarActionId,
+} from "@edgeever/shared/mobile-editor";
 import { useDOMImperativeHandle, type DOMImperativeFactory, type DOMProps } from "expo/dom";
 import { useCallback, useEffect, useMemo, useRef, type ReactNode, type Ref } from "react";
 
@@ -65,19 +74,12 @@ export default function LocalTiptapEditor(props: LocalTiptapEditorProps) {
       StarterKit,
       protectedImageExtension,
       Placeholder.configure({
-        placeholder: props.locale === "en-US" ? "Start writing..." : "开始记录...",
+        placeholder: getMobileEditorPlaceholder(props.locale),
       }),
     ],
     content: resolveImageSources(props.content, props.baseUrl),
     editorProps: {
-      attributes: {
-        autocapitalize: "sentences",
-        autocomplete: "on",
-        autocorrect: "on",
-        class: "edgeever-editor-content",
-        inputmode: "text",
-        spellcheck: "true",
-      },
+      attributes: getMobileEditorInputAttributes("edgeever-editor-content"),
     },
     onUpdate: ({ editor: activeEditor }) => {
       if (changeTimerRef.current !== null) {
@@ -174,9 +176,9 @@ export default function LocalTiptapEditor(props: LocalTiptapEditorProps) {
   const toolbarState = useEditorState({
     editor,
     selector: ({ editor: activeEditor }) =>
-      (activeEditor?.isActive("bold") ? 1 : 0) |
-      (activeEditor?.isActive("bulletList") ? 8 : 0) |
-      (activeEditor?.isActive("blockquote") ? 16 : 0),
+      (activeEditor?.isActive("bold") ? MOBILE_EDITOR_ACTIVE_FLAGS.bold : 0) |
+      (activeEditor?.isActive("bulletList") ? MOBILE_EDITOR_ACTIVE_FLAGS.bulletList : 0) |
+      (activeEditor?.isActive("blockquote") ? MOBILE_EDITOR_ACTIVE_FLAGS.blockquote : 0),
   });
 
   const insertImage = async () => {
@@ -189,15 +191,34 @@ export default function LocalTiptapEditor(props: LocalTiptapEditorProps) {
     }
   };
 
+  const toolbarIcons: Record<MobileEditorToolbarActionId, ReactNode> = {
+    image: <ImagePlusIcon />,
+    bold: <BoldIcon />,
+    bulletList: <ListIcon />,
+    blockquote: <QuoteIcon />,
+    horizontalRule: <MinusIcon />,
+  };
+  const toolbarHandlers: Record<MobileEditorToolbarActionId, () => void> = {
+    image: () => void insertImage(),
+    bold: () => editor?.chain().focus().toggleBold().run(),
+    bulletList: () => editor?.chain().focus().toggleBulletList().run(),
+    blockquote: () => editor?.chain().focus().toggleBlockquote().run(),
+    horizontalRule: () => editor?.chain().focus().setHorizontalRule().run(),
+  };
+
   return (
     <div className="edgeever-editor-shell">
       <style>{getEditorStyles(props.theme)}</style>
-      <div aria-label={props.locale === "en-US" ? "Editor toolbar" : "编辑器工具栏"} className="edgeever-editor-toolbar" role="toolbar">
-        <ToolbarButton icon={<ImagePlusIcon />} label={props.locale === "en-US" ? "Upload image" : "上传图片"} onRun={() => void insertImage()} />
-        <ToolbarButton active={Boolean(toolbarState & 1)} icon={<BoldIcon />} label={props.locale === "en-US" ? "Bold" : "加粗"} onRun={() => editor?.chain().focus().toggleBold().run()} />
-        <ToolbarButton active={Boolean(toolbarState & 8)} icon={<ListIcon />} label={props.locale === "en-US" ? "Bullet list" : "无序列表"} onRun={() => editor?.chain().focus().toggleBulletList().run()} />
-        <ToolbarButton active={Boolean(toolbarState & 16)} icon={<QuoteIcon />} label={props.locale === "en-US" ? "Quote" : "引用"} onRun={() => editor?.chain().focus().toggleBlockquote().run()} />
-        <ToolbarButton icon={<MinusIcon />} label={props.locale === "en-US" ? "Horizontal rule" : "分割线"} onRun={() => editor?.chain().focus().setHorizontalRule().run()} />
+      <div aria-label={getMobileEditorToolbarLabel(props.locale)} className="edgeever-editor-toolbar" role="toolbar">
+        {MOBILE_EDITOR_TOOLBAR_ACTIONS.map((action) => (
+          <ToolbarButton
+            key={action.id}
+            active={action.activeFlag > 0 && Boolean(toolbarState & action.activeFlag)}
+            icon={toolbarIcons[action.id]}
+            label={getMobileEditorToolbarActionLabel(action.id, props.locale)}
+            onRun={toolbarHandlers[action.id]}
+          />
+        ))}
       </div>
       <EditorContent editor={editor} />
     </div>
