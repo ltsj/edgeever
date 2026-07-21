@@ -54,9 +54,7 @@ The public demo resets every Monday at 1:00 AM (China Standard Time) and restore
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/tianma-if/edgeever)
 
-Cloudflare creates a GitHub repository for the installation, provisions the Worker, D1 database, and R2 bucket, requests the initial login password as a Secret, applies migrations, and connects Workers Builds. The generated repository checks for upstream EdgeEver updates daily; the default `stable` channel follows formal Releases, while the optional `edge` channel follows upstream `main`.
-
-See [Deploy EdgeEver with Cloudflare](docs/deploy-cloudflare-button.md) for setup, verification, update channels, and troubleshooting.
+One-click deployment creates a dedicated GitHub repository and the required Cloudflare resources, then automatically redeploys after the repository's daily upstream sync; see [Deploy EdgeEver with Cloudflare](docs/deploy-cloudflare-button.md) for setup and troubleshooting.
 
 ### Deploy with an AI Agent
 
