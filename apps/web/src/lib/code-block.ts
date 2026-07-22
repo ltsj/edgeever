@@ -14,15 +14,20 @@ export const EdgeEverCodeBlock = CodeBlockLowlight.extend({
 export const CODE_BLOCK_LANGUAGES = [
   { value: "plaintext", label: "Plain text" },
   { value: "bash", label: "Bash" },
+  { value: "cpp", label: "C++" },
   { value: "css", label: "CSS" },
+  { value: "go", label: "Go" },
   { value: "html", label: "HTML" },
+  { value: "java", label: "Java" },
   { value: "javascript", label: "JavaScript" },
   { value: "json", label: "JSON" },
   { value: "markdown", label: "Markdown" },
   { value: "mermaid", label: "Mermaid" },
   { value: "python", label: "Python" },
+  { value: "rust", label: "Rust" },
   { value: "sql", label: "SQL" },
   { value: "typescript", label: "TypeScript" },
+  { value: "yaml", label: "YAML" },
 ] as const;
 
 export const getCodeBlockLanguageValue = (language: unknown) => {
