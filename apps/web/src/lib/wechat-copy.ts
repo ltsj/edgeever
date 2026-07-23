@@ -94,9 +94,46 @@ const WECHAT_IMAGE_MIME_TYPES = new Set([
   "image/webp",
 ]);
 
-const convertImageToPng = async (blob: Blob) => {
-  if (WECHAT_IMAGE_MIME_TYPES.has(blob.type.toLocaleLowerCase())) {
-    return blob;
+const canvasToPng = (canvas: HTMLCanvasElement) => new Promise<Blob>((resolve, reject) => {
+  canvas.toBlob((png) => {
+    if (png) {
+      resolve(png);
+      return;
+    }
+    reject(new Error("Could not convert image to PNG"));
+  }, "image/png");
+});
+
+const rasterizeImageElement = async (image: HTMLImageElement) => {
+  if (!image.complete || image.naturalWidth === 0) {
+    await image.decode();
+  }
+  if (image.naturalWidth === 0 || image.naturalHeight === 0) {
+    throw new Error("Could not decode image for clipboard");
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = image.naturalWidth;
+  canvas.height = image.naturalHeight;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Could not create image canvas");
+  }
+  context.drawImage(image, 0, 0);
+  return canvasToPng(canvas);
+};
+
+const rasterizeBlob = async (blob: Blob) => {
+  if (blob.type.toLocaleLowerCase() === "image/svg+xml") {
+    const objectUrl = URL.createObjectURL(blob);
+    try {
+      const image = new Image();
+      image.src = objectUrl;
+      await image.decode();
+      return rasterizeImageElement(image);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
   }
 
   const bitmap = await createImageBitmap(blob);
@@ -109,37 +146,56 @@ const convertImageToPng = async (blob: Blob) => {
       throw new Error("Could not create image canvas");
     }
     context.drawImage(bitmap, 0, 0);
-    return await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob((png) => {
-        if (png) {
-          resolve(png);
-          return;
-        }
-        reject(new Error("Could not convert image to PNG"));
-      }, "image/png");
-    });
+    return canvasToPng(canvas);
   } finally {
     bitmap.close();
   }
 };
 
-const embedImagesForWeChat = async (root: HTMLElement) => {
+const convertImageToPng = async (blob: Blob) => {
+  if (WECHAT_IMAGE_MIME_TYPES.has(blob.type.toLocaleLowerCase())) {
+    return blob;
+  }
+
+  return rasterizeBlob(blob);
+};
+
+const isSameOrigin = (source: string) => {
+  try {
+    return new URL(source, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+};
+
+const embedImagesForWeChat = async (root: HTMLElement, originalImages: HTMLImageElement[] = []) => {
   const images = Array.from(root.querySelectorAll<HTMLImageElement>("img"));
-  await Promise.all(images.map(async (image) => {
+  await Promise.all(images.map(async (image, index) => {
     const source = image.getAttribute("src")?.trim();
     if (!source || source.startsWith("data:")) {
       return;
     }
 
     try {
+      const originalImage = originalImages[index];
+      if (originalImage) {
+        image.setAttribute("src", await blobToDataUrl(await rasterizeImageElement(originalImage)));
+        image.removeAttribute("srcset");
+        return;
+      }
+
       const response = await fetch(source, { credentials: "include" });
       if (!response.ok) {
-        return;
+        throw new Error(`Could not fetch image (${response.status})`);
       }
       image.setAttribute("src", await blobToDataUrl(await convertImageToPng(await response.blob())));
       image.removeAttribute("srcset");
-    } catch {
-      // Keep the original URL when the browser cannot fetch an external image.
+    } catch (error) {
+      // Never put a private same-origin URL into the clipboard: WeChat cannot access it.
+      if (isSameOrigin(source)) {
+        throw error;
+      }
+      // External images may still be reachable by the WeChat editor.
     }
   }));
 };
@@ -149,7 +205,8 @@ export const buildWeChatClipboardHtml = async (editor: Editor) => {
   container.innerHTML = editor.getHTML();
   const editorTheme = editor.view.dom.closest<HTMLElement>("[data-editor-theme]")?.dataset.editorTheme;
   applyInlineStyles(container, editorTheme);
-  await embedImagesForWeChat(container);
+  const originalImages = Array.from(editor.view.dom.querySelectorAll<HTMLImageElement>("img"));
+  await embedImagesForWeChat(container, originalImages);
   return container.outerHTML;
 };
 
