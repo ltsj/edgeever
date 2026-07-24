@@ -1843,7 +1843,12 @@ const RichEditorPane = ({
       setMobilePlainTextElementValue(mobileTextAreaRef.current, nextMarkdown);
 
       if (isEditorReady(currentEditor)) {
-        currentEditor.commands.setContent(nextContent);
+        try {
+          currentEditor.commands.setContent(nextContent);
+        } catch (err) {
+          console.error("Failed to set TipTap contentJson, falling back to markdownToDoc:", err);
+          currentEditor.commands.setContent(markdownToDoc(nextMarkdown));
+        }
       }
 
       hydratedMemoIdRef.current = memo.id;
@@ -2033,7 +2038,12 @@ const RichEditorPane = ({
 
       if (useMobilePlainTextEditor && isEditorReady(editorRef.current)) {
         hydratingRef.current = true;
-        editorRef.current.commands.setContent(savedMemo.contentJson);
+        try {
+          editorRef.current.commands.setContent(savedMemo.contentJson);
+        } catch (err) {
+          console.error("Failed to update mobile editor contentJson, falling back to markdownToDoc:", err);
+          editorRef.current.commands.setContent(markdownToDoc(savedMemo.contentMarkdown ?? ""));
+        }
         window.setTimeout(() => {
           hydratingRef.current = false;
         }, 0);
