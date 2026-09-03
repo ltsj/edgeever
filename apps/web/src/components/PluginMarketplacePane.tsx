@@ -1,6 +1,6 @@
 import { ChevronLeft, Store } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams, useSearchParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import * as m from "motion/react-m";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -9,7 +9,6 @@ import type { EdgeEverPluginHost } from "@/lib/plugins/plugin-host";
 import { contentEnterMotion } from "@/lib/motion";
 import { WORKSPACE_PAGE_TITLE_CLASSNAME } from "@/lib/workspace-ui";
 import { ExecutionCenterButton } from "@/components/execution/ExecutionCenterButton";
-import { getPluginDetailPath } from "@/lib/plugins/plugin-navigation";
 
 export const PluginMarketplacePane = ({
   host,
@@ -23,7 +22,6 @@ export const PluginMarketplacePane = ({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { pluginId = null } = useParams<{ pluginId: string }>();
-  const [searchParams] = useSearchParams();
   const close = () => {
     if (pluginId) {
       navigate("/plugins");
@@ -61,8 +59,7 @@ export const PluginMarketplacePane = ({
           <PluginManagerCard
             host={host}
             selectedPluginId={pluginId}
-            requestedPage={searchParams.get("view")}
-            onOpenPlugin={(id) => navigate(getPluginDetailPath(id))}
+            onOpenPlugin={(id) => navigate(`/plugins/${encodeURIComponent(id)}`)}
             onClosePlugin={() => navigate("/plugins")}
           />
         </m.div>
